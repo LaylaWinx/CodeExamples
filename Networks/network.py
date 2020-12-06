@@ -1,7 +1,9 @@
 import numpy as np
 
-FILE_WITH_TEST_NAME = "test_long_msg_collisions.txt"
+FILE_WITH_TEST_NAME = "max_msg_size_one_channel.txt"
 TACT_TIME = 51.2e-6
+USE_MAX_TIME_TRANSPORTING = True # if all the messages are the max size as in this task
+MAX_TRANSPORTING_TACTS = 1526 * 8 / 512 # because max time to transport msg is 24 tacts
 
 full_log = []
 
@@ -69,7 +71,11 @@ def work_with_times_data(station_num):
     f = open(FILE_WITH_TEST_NAME)
     msges = []
     while (s := f.readline().rstrip()):
-        from_adress, to_adress, time_msg_tact, sending_tacts = s.split()
+        if not USE_MAX_TIME_TRANSPORTING:
+            from_adress, to_adress, time_msg_tact, sending_tacts = s.split()
+        else:
+            from_adress, to_adress, time_msg_tact = s.split()
+            sending_tacts = MAX_TRANSPORTING_TACTS
         from_adress = int(from_adress)
         to_adress = int(to_adress)
         time_msg = float(time_msg_tact) * TACT_TIME
@@ -161,5 +167,6 @@ full_log.sort()
 
 for t, type_of_msg, msg in full_log:
     print(f"{np.round(t, 8)}: {type_of_msg} '{msg}'")
+
 
 
