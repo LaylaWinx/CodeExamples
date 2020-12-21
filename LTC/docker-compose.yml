@@ -1,0 +1,58 @@
+version: "3"
+
+services:
+    server:
+        build: server/
+        restart: always
+        expose: 
+            - "1-65535"
+        cap_add:
+            - NET_ADMIN
+        networks:
+            static-network:
+                ipv4_address: 172.30.3.0 
+        
+    client1:
+        build: client1/
+        expose: 
+            - "1-65535"
+        depends_on:
+            - server
+        networks:
+            static-network:
+                ipv4_address: 172.30.3.11
+
+    client2:
+        build: client2/
+        expose: 
+            - "1-65535"
+        depends_on:
+            - server
+        networks:
+            static-network:
+                ipv4_address: 172.30.3.12
+
+    client3:
+        build: client3/
+        expose: 
+            - "1-65535"
+        depends_on:
+            - server
+        networks:
+            static-network:
+                ipv4_address: 172.30.3.13
+
+    client4:
+        build: client4/
+        expose: 
+            - "1-65535"
+        depends_on:
+            - server
+        networks:
+            static-network:
+                ipv4_address: 172.30.3.14
+networks:
+    static-network:
+        ipam:
+            config:
+                - subnet: 172.30.3.0/16

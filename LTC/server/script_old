@@ -1,0 +1,55 @@
+service ssh start
+
+TC_FOLDER=/sbin/tc
+INTERFACE=eth0
+
+ALL_TRAFFIC_LIMIT=200mbit
+FIR_LIMIT=80mbit
+OTHERS_LIMIT=40mbit
+
+FIRST_ZONE_IP=172.30.3.11
+SEC_ZONE_IP=172.30.3.12
+THIR_ZONE_IP=172.30.3.13
+FOUR_ZONE_IP=172.30.3.14
+
+
+FIRST_ZONE_FILTER="$TC_FOLDER filter add dev $INTERFACE protocol ip parent 1:0 prio 2 u32"
+SEC_ZONE_FILTER="$TC_FOLDER filter add dev $INTERFACE protocol ip parent 1:0 prio 3 u32"
+THIR_ZONE_FILTER="$TC_FOLDER filter add dev $INTERFACE protocol ip parent 1:0 prio 4 u32"
+FOUR_ZONE_FILTER="$TC_FOLDER filter add dev $INTERFACE protocol ip parent 1:0 prio 5 u32"
+ICMP_FILTER="$TC_FOLDER filter add dev $INTERFACE protocol ip parent 1:0 prio 1 u32"
+SSH_FILTER="$TC_FOLDER filter add dev $INTERFACE protocol ip parent 1:4 prio 6 u32"
+
+
+create() {
+  echo "*** Started working"
+
+  $TC_FOLDER qdisc add dev $IF root handle 1:0 htb default 30
+
+  $ICMP_FILTER match ip protocol 1 0xff action drop
+
+  $TC_FOLDER class add dev $INTERFACE parent 1:0 classid 1:2 htb rate $FIR_LIMIT
+
+  $FIRST_ZONE_FILTER match ip src $FIRST_ZONE_IP flowid 1:2
+
+  $TC_FOLDER class add dev $INTERFACE parent 1:0 classid 1:3 htb rate $OTHERS_LIMIT
+
+  $SEC_ZONE_FILTER match ip src $SEC_ZONE_IP flowid 1:3
+
+  $TC_FOLDER class add dev $INTERFACE parent 1:0 classid 1:4 htb rate $OTHERS_LIMIT
+
+  $THIR_ZONE_FILTER match ip src $THIR_ZONE_IP flowid 1:4
+
+  $TC_FOLDER class add dev $INTERFACE parent 1:0 classid 1:5 htb rate $OTHERS_LIMIT
+
+  $FOUR_ZONE_FILTER match ip src $FOUR_ZONE_IP flowid 1:5
+
+  $SSH_FILTER matchip dport 22 0xffff action drop
+}
+
+clean() {
+  $TC_FOLDER qdisc del dev $INTERFACE root
+}
+
+clean
+create

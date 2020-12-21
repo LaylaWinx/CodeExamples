@@ -1,0 +1,38 @@
+service ssh start
+
+TC_FOLDER=/sbin/tc
+INTERFACE=eth0
+
+ALL_TRAFFIC_LIMIT=200mbit
+FIR_LIMIT=80mbit
+OTHERS_LIMIT=40mbit
+LOWER_BOUND_LIMIT=5mbit
+
+FIRST_ZONE_IP=172.30.3.11
+SEC_ZONE_IP=172.30.3.12
+THIR_ZONE_IP=172.30.3.13
+FOUR_ZONE_IP=172.30.3.14
+
+
+FILTER_START="$TC_FOLDER filter add dev $INTERFACE protocol ip"
+ADD_CLASS="$TC_FOLDER class add dev $INTERFACE"
+
+create() {
+  $TC_FOLDER qdisc add dev $INTERFACE root handle 1:0 htb default 30
+  $FILTER_START parent 1:0 prio 1 u32 match ip protocol 1 0xff action drop
+  $ADD_CLASS parent 1:0 classid 1:1 htb rate $ALL_TRAFFIC_LIMIT
+  $ADD_CLASS parent 1:1 classid 1:2 htb rate $LOWER_BOUND_LIMIT ceil $FIR_LIMIT
+  $ADD_CLASS parent 1:1 classid 1:30 htb rate 1mbit ceil 2mbit
+  $FILTER_START parent 1:0 prio 2 u32 match ip src $FIRST_ZONE_IP flowid 1:2
+  $ADD_CLASS parent 1:1 classid 1:3 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT
+  $FILTER_START parent 1:0 prio 3 u32 match ip src $SEC_ZONE_IP flowid 1:3
+  $ADD_CLASS parent 1:1 classid 1:4 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT
+  $FILTER_START parent 1:0 prio 4 u32 match ip src $FOUR_ZONE_IP flowid 1:4
+}
+
+clean() {
+  $TC_FOLDER qdisc del dev $INTERFACE root
+}
+
+clean
+create
