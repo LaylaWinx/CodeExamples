@@ -1,0 +1,10 @@
+#!/bin/bash
+
+ping 172.30.3.0 -c 10
+while /bin/true; do
+  sshpass -p "user_pswd" ssh -oStrictHostKeyChecking=no -oConnectTimeout=5 -i ssh_key_sasha user_name@172.30.3.0 echo "ssh echo text"
+  ping 172.30.3.0 -c 10
+  sleep 5
+done &
+iperf -su -e -p 8080 &
+iperf -s -e -p 8080

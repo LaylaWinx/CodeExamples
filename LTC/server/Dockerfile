@@ -13,6 +13,6 @@ RUN chown -R user_name /home/user_folder/.ssh
 COPY script ./script
 RUN chmod +x script
 
-CMD ./script && iperf -su -p 8080 & iperf -s -p 8080
+CMD bash ./script
 
 

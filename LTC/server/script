@@ -1,13 +1,21 @@
+#!/bin/bash
+
 service ssh start
 
 TC_FOLDER=/sbin/tc
 INTERFACE=eth0
+INTERFACE_INTERM=ifb0
+ICMP_PROTOCOL=1
+TCP_PROTOCOL=6
+UDP_PROTOCOL=17
+SSH_PORT=22
 
 ALL_TRAFFIC_LIMIT=200mbit
 FIR_LIMIT=80mbit
 OTHERS_LIMIT=40mbit
 LOWER_BOUND_LIMIT=5mbit
 
+SERVER_IP=172.30.3.0
 FIRST_ZONE_IP=172.30.3.11
 SEC_ZONE_IP=172.30.3.12
 THIR_ZONE_IP=172.30.3.13
@@ -18,16 +26,33 @@ FILTER_START="$TC_FOLDER filter add dev $INTERFACE protocol ip"
 ADD_CLASS="$TC_FOLDER class add dev $INTERFACE"
 
 create() {
+  ip link add $INTERFACE_INTERM type ifb
+  ip link set $INTERFACE_INTERM up
+
+  $TC_FOLDER qdisc add dev $INTERFACE ingress
+  $FILTER_START parent ffff: u32 match u32 0 0 action mirred egress redirect dev $INTERFACE_INTERM
   $TC_FOLDER qdisc add dev $INTERFACE root handle 1:0 htb default 30
-  $FILTER_START parent 1:0 prio 1 u32 match ip protocol 1 0xff action drop
+  $TC_FOLDER qdisc add dev $INTERFACE_INTERM root handle 1:0 htb default 60
+
+
+  $TC_FOLDER add dev $INTERFACE_INTERM parent 1:0 classid 1:1 htb prio 1
+  $TC_FOLDER filter add dev $INTERFACE_INTERM protocol ip parent 1:0 prio 1 u32 match ip protocol $ICMP_PROTOCOL 0xff action drop
+  $TC_FOLDER filter add dev $INTERFACE_INTERM protocol ip parent 1:0 prio 1 u32 match ip src $THIR_ZONE_IP match ip protocol $TCP_PROTOCOL 0xff match ip dport $SSH_PORT 0xffff action drop
+  
+
   $ADD_CLASS parent 1:0 classid 1:1 htb rate $ALL_TRAFFIC_LIMIT
   $ADD_CLASS parent 1:1 classid 1:2 htb rate $LOWER_BOUND_LIMIT ceil $FIR_LIMIT
   $ADD_CLASS parent 1:1 classid 1:30 htb rate 1mbit ceil 2mbit
-  $FILTER_START parent 1:0 prio 2 u32 match ip src $FIRST_ZONE_IP flowid 1:2
-  $ADD_CLASS parent 1:1 classid 1:3 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT
-  $FILTER_START parent 1:0 prio 3 u32 match ip src $SEC_ZONE_IP flowid 1:3
-  $ADD_CLASS parent 1:1 classid 1:4 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT
-  $FILTER_START parent 1:0 prio 4 u32 match ip src $FOUR_ZONE_IP flowid 1:4
+  $TC_FILTER class add dev $INTERFACE_INTERM parent 1:1 classid 1:60 htb rate 1mbit ceil 2mbit
+  $FILTER_START parent 1:0 prio 1 u32 match ip dst $FIRST_ZONE_IP flowid 1:2
+  $ADD_CLASS parent 1:1 classid 1:3 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT prio 1
+  $ADD_CLASS parent 1:1 classid 1:4 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT prio 2
+  $FILTER_START parent 1:0 prio 2 u32 match ip dst $SEC_ZONE_IP match ip protocol $UDP_PROTOCOL 0xff flowid 1:4
+  $FILTER_START parent 1:0 prio 1 u32 match ip dst $SEC_ZONE_IP flowid 1:3
+  $ADD_CLASS parent 1:1 classid 1:5 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT
+  $FILTER_START parent 1:0 prio 1 u32 match ip dst $THIR_ZONE_IP flowid 1:5
+  $ADD_CLASS parent 1:1 classid 1:6 htb rate $LOWER_BOUND_LIMIT ceil $OTHERS_LIMIT
+  $FILTER_START parent 1:0 prio 1 u32 match ip dst $FOUR_ZONE_IP flowid 1:6
 }
 
 clean() {
@@ -36,3 +61,14 @@ clean() {
 
 clean
 create
+
+while /bin/true; do
+  iperf -c 172.30.3.11 -e -p 8080 -i 5 -t 20 &
+  iperf -c 172.30.3.12 -e -p 8080 -i 5 -t 20 &
+  iperf -c 172.30.3.13 -e -p 8080 -i 5 -t 20 &
+  iperf -c 172.30.3.14 -e -p 8080 -i 5 -t 20 &
+  iperf -c 172.30.3.11 -e -u -p 8080 -i 5 -t 20 &
+  iperf -c 172.30.3.12 -e -u -p 8080 -i 5 -t 20 &
+  iperf -c 172.30.3.13 -e -u -p 8080 -i 5 -t 20 &
+  iperf -c 172.30.3.14 -e -u -p 8080 -i 5 -t 20
+done
